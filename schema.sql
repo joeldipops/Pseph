@@ -104,19 +104,17 @@ BEGIN
     RETURN QUERY
         SELECT 
             P.CandidateId,
-            cast(
-                CASE WHEN max(L.max) <> 1
+            cast(sum(                
+                CASE WHEN L.max <> 1
                     THEN
-                        sum(
-                            (-1/(
-                                (L.max - 1) ^ Factor
-                            )) * 
-                            ((P.PreferenceNumber-1)^Factor) 
-                            + 1
-                        )                    
-                    ELSE sum(P.PreferenceNumber)
+                		    (-1/(
+                            (L.max - 1) ^ Factor
+                        )) * 
+                        ((P.PreferenceNumber-1)^Factor) 
+                        + 1
+                    ELSE P.PreferenceNumber
                 END
-            AS decimal(6, 3)),
+            ) AS decimal(6, 3)),
             coalesce(sum(O.Primary), 0)
         FROM Preference P
             CROSS JOIN (
@@ -135,17 +133,17 @@ BEGIN
             ) O ON TRUE
         GROUP BY P.CandidateId
         ORDER BY 
-            CASE WHEN max(L.max) <> 1 
-                THEN
-                    sum(
-                        (-1/(
+            sum(
+                CASE WHEN L.max <> 1
+                    THEN
+                		    (-1/(
                             (L.max - 1) ^ Factor
                         )) * 
                         ((P.PreferenceNumber-1)^Factor) 
                         + 1
-                    )                    
-                ELSE sum(P.PreferenceNumber)
-            END DESC,
+                    ELSE P.PreferenceNumber
+                END
+            ) DESC,
             coalesce(sum(O.Primary), 0) DESC
         ;
 END;
