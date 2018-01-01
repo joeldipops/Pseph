@@ -82,9 +82,31 @@ CREATE VIEW vExplicitlyWeighted
 AS
     SELECT 
         P.CandidateId,
-        sum(W.Weight)
+        sum(W.Weight) AS WeightedVotes
     FROM Preference P
         INNER JOIN Weight W
         ON W.PreferenceNumber = P.PreferenceNumber
     GROUP BY P.CandidateId
-    ORDER BY sum(W.Weight)
+    ORDER BY sum(W.Weight) DESC
+;
+    
+CREATE FUNCTION fnImplicitlyWeighted(
+    Factor decimal
+)
+    RETURNS TABLE (
+        CandidateId int,
+        WeightedVotes decimal
+    )
+AS
+$BODY$
+BEGIN
+    RETURN QUERY
+        SELECT 
+            P.CandidateId,
+            sum(1/(Factor*P.PreferenceNumber)) AS WeightedVotes
+        FROM Preference P
+        GROUP BY P.CandidateId
+        ORDER BY sum(Factor/P.PreferenceNumber) DESC
+    ;
+END;
+$BODY$ LANGUAGE plpgsql;    
