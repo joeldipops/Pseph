@@ -95,7 +95,8 @@ CREATE FUNCTION fnImplicitlyWeighted(
 )
     RETURNS TABLE (
         CandidateId int,
-        WeightedVotes decimal
+        WeightedVotes decimal,
+        PrimaryVotes decimal
     )
 AS
 $BODY$
@@ -103,10 +104,52 @@ BEGIN
     RETURN QUERY
         SELECT 
             P.CandidateId,
-            sum(1/(Factor*P.PreferenceNumber)) AS WeightedVotes
+            cast(
+                CASE WHEN max(L.max) <> 1
+                    THEN
+                        sum(
+                            (-1/(
+                                (L.max - 1) ^ Factor
+                            )) * 
+                            ((P.PreferenceNumber-1)^Factor) 
+                            + 1
+                        )                    
+                    ELSE sum(P.PreferenceNumber)
+                END
+            AS decimal(6, 3)),
+            coalesce(sum(O.Primary), 0)
         FROM Preference P
+            CROSS JOIN (
+                SELECT max(PreferenceNumber) AS max
+                FROM Preference
+            ) L
+            
+            -- Break ties with primary vote.
+            LEFT JOIN LATERAL (
+                SELECT count(1) AS Primary
+                FROM Preference O
+                WHERE 
+                    O.PreferenceId = P.PreferenceId
+                    AND O.PreferenceNumber = 1
+                GROUP BY O.CandidateId
+            ) O ON TRUE
         GROUP BY P.CandidateId
-        ORDER BY sum(Factor/P.PreferenceNumber) DESC
-    ;
+        ORDER BY 
+            CASE WHEN max(L.max) <> 1 
+                THEN
+                    sum(
+                        (-1/(
+                            (L.max - 1) ^ Factor
+                        )) * 
+                        ((P.PreferenceNumber-1)^Factor) 
+                        + 1
+                    )                    
+                ELSE sum(P.PreferenceNumber)
+            END DESC,
+            coalesce(sum(O.Primary), 0) DESC
+        ;
 END;
-$BODY$ LANGUAGE plpgsql;    
+$BODY$ LANGUAGE plpgsql;  
+
+
+
